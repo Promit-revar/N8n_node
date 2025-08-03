@@ -104,59 +104,123 @@ Removes all messages for a specific session.
 
 ### 1. Unit Test
 ```bash
-node test.js
+npm test
 ```
 
-### 2. Local N8N Test
+### 2. Install and Test in N8N
+
+**Step 1: Build and Install**
 ```bash
-# Install locally
+# Build the node
+npm run build
+
+# Create package
 npm pack
+
+# Install in N8N (choose one method)
+# Method A: Global installation
 npm install -g ./n8n-nodes-sqlite-memory-1.0.0.tgz
 
-# Start N8N
-npx n8n start
+# Method B: Local N8N installation
+cp n8n-nodes-sqlite-memory-1.0.0.tgz ~/.n8n/nodes/
+cd ~/.n8n/nodes && npm install n8n-nodes-sqlite-memory-1.0.0.tgz
 ```
 
-### 3. Import Test Workflow
-1. Start N8N locally
-2. Import `workflow-test.json`
-3. Execute workflow to test all operations
+**Step 2: Start N8N**
+```bash
+# Start with custom extensions path
+export N8N_CUSTOM_EXTENSIONS="$HOME/.n8n/nodes"
+n8n start
 
-### 4. Manual Testing
-1. Add SQLite Memory node to workflow
-2. Set session key (e.g., "test-chat")
-3. Test operations:
-   - Add user message
-   - Add AI response
-   - Get messages (verify both appear)
-   - Clear memory (verify empty result)
+# Or use the provided script
+./start-n8n.sh
+```
+
+**Step 3: Test in N8N Interface**
+1. Open http://localhost:5678
+2. Create new workflow
+3. Search for "SQLite Memory" in node panel
+4. Node appears under "Transform" category
+
+### 3. Manual Testing Steps
+1. **Add Manual Trigger** node
+2. **Add SQLite Memory** node:
+   - Operation: "Add Message"
+   - Session Key: "test-chat"
+   - Role: "user"
+   - Content: "Hello!"
+3. **Add another SQLite Memory** node:
+   - Operation: "Add Message"
+   - Session Key: "test-chat"
+   - Role: "ai"
+   - Content: "Hi there!"
+4. **Add final SQLite Memory** node:
+   - Operation: "Get Messages"
+   - Session Key: "test-chat"
+   - Window Size: 10
+5. **Execute workflow** - should see both messages
+
+### 4. Import Test Workflow
+```bash
+# Import workflow-test.json in N8N interface
+# Execute to test all operations automatically
+```
 
 ## Troubleshooting
 
 **Node not appearing in N8N:**
-- Restart N8N after installation
-- Check `~/.n8n/nodes` directory
+```bash
+# Try installation script
+./install-node.sh
+
+# Or debug with
+./debug-n8n.sh
+
+# Verify installation
+ls ~/.n8n/nodes/node_modules/ | grep sqlite
+```
+
+**Start N8N with custom extensions:**
+```bash
+N8N_CUSTOM_EXTENSIONS="$HOME/.n8n/nodes" n8n start
+```
 
 **Database errors:**
 - Ensure N8N has write permissions in working directory
 - Check `n8n-memory.sqlite` file is created
+- Database auto-creates on first use
 
 **Memory not persisting:**
-- Verify session keys are consistent
-- Check database file location
+- Verify session keys are consistent across operations
+- Check database file location in N8N working directory
 
 ## Development
 
 ```bash
-# Clone and build
-git clone <repo>
-cd n8n-nodes-sqlite-memory
+# Setup
 npm install
 npm run build
 
-# Test
+# Test core functionality
 npm test
+
+# Install for N8N testing
+./install-node.sh
+
+# Start N8N for testing
+./start-n8n.sh
+
+# Debug installation issues
+./debug-n8n.sh
 ```
+
+## Scripts
+
+- `npm test` - Run unit tests
+- `npm run build` - Build TypeScript and copy assets
+- `./install-node.sh` - Install node in N8N
+- `./start-n8n.sh` - Start N8N with custom extensions
+- `./debug-n8n.sh` - Debug node loading issues
 
 ## License
 
