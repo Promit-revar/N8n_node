@@ -1,0 +1,136 @@
+{
+  "name": "AI Agent with SQLite Memory",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "chat-trigger",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "autoStoreUser",
+        "sessionKey": "={{ $json.sessionId || 'default-session' }}"
+      },
+      "id": "store-user",
+      "name": "Store User Input",
+      "type": "n8n-nodes-sqlite-memory.sqliteMemory",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "smartContext",
+        "sessionKey": "={{ $json.sessionKey }}",
+        "tokenLimit": 3000,
+        "aiModel": "gpt-3.5-turbo"
+      },
+      "id": "get-context",
+      "name": "Get Context",
+      "type": "n8n-nodes-sqlite-memory.sqliteMemory",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.messages.length > 0 ? 'Previous conversation:\\n' + $json.messages.map(m => m.role + ': ' + m.content).join('\\n') + '\\n\\nCurrent user message: ' + $('Chat Trigger').first().json.chatInput : $('Chat Trigger').first().json.chatInput }}"
+            }
+          ]
+        }
+      },
+      "id": "set-prompt",
+      "name": "Set Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "={{ $json.prompt }}"
+      },
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "autoStoreAI",
+        "sessionKey": "={{ $('Store User Input').first().json.sessionKey }}"
+      },
+      "id": "store-ai",
+      "name": "Store AI Response",
+      "type": "n8n-nodes-sqlite-memory.sqliteMemory",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Store User Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store User Input": {
+      "main": [
+        [
+          {
+            "node": "Get Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Context": {
+      "main": [
+        [
+          {
+            "node": "Set Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Store AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
