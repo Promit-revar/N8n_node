@@ -41,7 +41,7 @@
           "string": [
             {
               "name": "prompt",
-              "value": "Context:\n{{ $json.messages.map(m => m.role + ': ' + m.content).join('\\n') }}\n\nUser: {{ $('Chat Trigger').first().json.chatInput }}"
+              "value": "={{ $json.messages.length > 0 ? 'Previous conversation:\\n' + $json.messages.map(m => m.role + ': ' + m.content).join('\\n') + '\\n\\nCurrent user message: ' + $('Chat Trigger').first().json.chatInput : $('Chat Trigger').first().json.chatInput }}"
             }
           ]
         }

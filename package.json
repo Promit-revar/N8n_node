@@ -52,6 +52,7 @@
   "dependencies": {
     "@langchain/core": "^0.3.66",
     "langchain": "^0.3.30",
+    "n8n-nodes-sqlite-memory": "file:n8n-nodes-sqlite-memory-1.0.0.tgz",
     "sqlite3": "^5.1.6",
     "tiktoken": "^1.0.21",
     "uuid": "^11.1.0"

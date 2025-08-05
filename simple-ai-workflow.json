@@ -1,0 +1,84 @@
+{
+  "name": "Simple AI Agent with SQLite Memory",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "chat-trigger",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "autoStoreUser",
+        "sessionKey": "simple-chat"
+      },
+      "id": "store-user",
+      "name": "Store User Input",
+      "type": "n8n-nodes-sqlite-memory.sqliteMemory",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "={{ $('Chat Trigger').first().json.chatInput }}"
+      },
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "autoStoreAI",
+        "sessionKey": "simple-chat"
+      },
+      "id": "store-ai",
+      "name": "Store AI Response",
+      "type": "n8n-nodes-sqlite-memory.sqliteMemory",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Store User Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store User Input": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Store AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
