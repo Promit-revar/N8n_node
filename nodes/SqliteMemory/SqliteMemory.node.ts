@@ -32,7 +32,10 @@ class MemoryStore {
 	private cache: Map<string, Message[]> = new Map();
 
 	private constructor() {
-		const dbPath = join(process.cwd(), 'n8n-memory.sqlite');
+		// Use N8N user folder if available (Docker), otherwise current directory
+		const baseDir = process.env.N8N_USER_FOLDER || process.cwd();
+		const dbPath = join(baseDir, 'n8n-memory.sqlite');
+		console.log('SQLite Memory: Database path:', dbPath);
 		this.db = new sqlite3.Database(dbPath);
 		this.initialize();
 	}
@@ -45,21 +48,21 @@ class MemoryStore {
 	}
 
 	private initialize() {
-		// Create table with basic structure first
-		this.db.run(`
-			CREATE TABLE IF NOT EXISTS memory (
-				sessionKey TEXT PRIMARY KEY,
-				messages TEXT,
-				created INTEGER,
-				lastAccessed INTEGER
-			)
-		`);
-		
-		// Add new columns if they don't exist
-		this.db.run(`ALTER TABLE memory ADD COLUMN version INTEGER DEFAULT 2`, () => {});
-		this.db.run(`ALTER TABLE memory ADD COLUMN messageCount INTEGER DEFAULT 0`, () => {});
-		this.db.run(`ALTER TABLE memory ADD COLUMN totalTokens INTEGER DEFAULT 0`, () => {});
-		this.db.run(`ALTER TABLE memory ADD COLUMN lastModel TEXT`, () => {});
+		try {
+			// Create table synchronously
+			this.db.exec(`
+				CREATE TABLE IF NOT EXISTS memory (
+					sessionKey TEXT PRIMARY KEY,
+					messages TEXT,
+					created INTEGER,
+					lastAccessed INTEGER
+				)
+			`);
+			console.log('SQLite Memory: Table created successfully');
+		} catch (error) {
+			console.error('SQLite Memory: Failed to create table:', error);
+			throw error;
+		}
 	}
 
 	private run(sql: string, params: any[] = []): Promise<void> {
