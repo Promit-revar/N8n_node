@@ -1,19 +1,20 @@
 version: '3.8'
 
 services:
-  n8n:
-    image: n8nio/n8n
-    restart: always
+  n8n-sqlite-memory:
+    build: .
+    container_name: n8n-sqlite-memory
     ports:
       - "5678:5678"
     environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=password
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/nodes
+      - N8N_USER_FOLDER=/home/node/.n8n
+      - WEBHOOK_URL=http://localhost:5678/
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./docker-deploy:/home/node/.n8n/nodes/sqlite-memory
-    command: n8n start
+      - ./workflows:/home/node/.n8n/workflows
+    restart: unless-stopped
 
 volumes:
   n8n_data:

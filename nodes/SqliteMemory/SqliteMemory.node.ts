@@ -3,21 +3,37 @@ import type {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	NodeConnectionType,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
 import * as sqlite3 from 'sqlite3';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { encoding_for_model } from 'tiktoken';
 
-type Message = { role: 'user' | 'ai'; content: string };
+type Message = {
+	id: string;
+	role: 'user' | 'assistant' | 'system';
+	content: string;
+	timestamp: number;
+	metadata?: {
+		model?: string;
+		tokens?: number;
+		[key: string]: any;
+	};
+};
+
+type LegacyMessage = { role: 'user' | 'ai'; content: string };
 
 class MemoryStore {
 	private static instance: MemoryStore;
 	private db: sqlite3.Database;
+	private cache: Map<string, Message[]> = new Map();
 
 	private constructor() {
-		const dbPath = join(process.cwd(), 'n8n-memory.sqlite');
+		// Use N8N user folder if available (Docker), otherwise current directory
+		const baseDir = process.env.N8N_USER_FOLDER || process.cwd();
+		const dbPath = join(baseDir, 'n8n-memory.sqlite');
 		this.db = new sqlite3.Database(dbPath);
 		this.initialize();
 	}
@@ -30,14 +46,21 @@ class MemoryStore {
 	}
 
 	private initialize() {
-		this.db.run(`
-			CREATE TABLE IF NOT EXISTS memory (
-				sessionKey TEXT PRIMARY KEY,
-				messages TEXT,
-				created INTEGER,
-				lastAccessed INTEGER
-			)
-		`);
+		try {
+			// Create table synchronously
+			this.db.exec(`
+				CREATE TABLE IF NOT EXISTS memory (
+					sessionKey TEXT PRIMARY KEY,
+					messages TEXT,
+					created INTEGER,
+					lastAccessed INTEGER
+				)
+			`);
+			// Table created successfully
+		} catch (error) {
+			// Failed to create table
+			throw error;
+		}
 	}
 
 	private run(sql: string, params: any[] = []): Promise<void> {
@@ -58,7 +81,73 @@ class MemoryStore {
 		});
 	}
 
+	private countTokens(text: string, model: string): number {
+		try {
+			const encoder = encoding_for_model(model as any);
+			const tokens = encoder.encode(text);
+			encoder.free();
+			return tokens.length;
+		} catch {
+			return Math.ceil(text.length / 4); // Fallback estimation
+		}
+	}
+
+	private migrateMessage(msg: any): Message {
+		if (msg.id) return msg as Message; // Already new format
+		// Migrate legacy format
+		return {
+			id: uuidv4(),
+			role: msg.role === 'ai' ? 'assistant' : msg.role,
+			content: msg.content,
+			timestamp: Date.now(),
+		};
+	}
+
+	generateSessionKey(): string {
+		return uuidv4();
+	}
+
+	detectUserMessage(input: any): string | null {
+		// Handle array input
+		if (Array.isArray(input) && input.length > 0) {
+			input = input[0];
+		}
+		
+		if (typeof input === 'string') return input;
+		if (input?.chatInput) return input.chatInput;
+		if (input?.message) return input.message;
+		if (input?.content) return input.content;
+		if (input?.text) return input.text;
+		if (input?.query) return input.query;
+		return null;
+	}
+
+	detectAIResponse(input: any): { content: string; metadata?: any } | null {
+		// OpenAI format
+		if (input?.choices?.[0]?.message?.content) {
+			return {
+				content: input.choices[0].message.content,
+				metadata: {
+					model: input.model,
+					tokens: input.usage?.total_tokens,
+				},
+			};
+		}
+		// LangChain format
+		if (input?.output) {
+			return { content: input.output, metadata: input.metadata };
+		}
+		// Simple text response
+		if (typeof input === 'string') return { content: input };
+		if (input?.content) return { content: input.content, metadata: input.metadata };
+		return null;
+	}
+
 	async getMessages(sessionKey: string, windowSize = 10): Promise<Message[]> {
+		if (this.cache.has(sessionKey)) {
+			return this.cache.get(sessionKey)!.slice(-windowSize);
+		}
+
 		const row = await this.get<{ messages: string }>(
 			`SELECT messages FROM memory WHERE sessionKey = ?`,
 			[sessionKey],
@@ -66,15 +155,19 @@ class MemoryStore {
 
 		if (!row) return [];
 
-		const messages: Message[] = JSON.parse(row.messages);
+		const rawMessages = JSON.parse(row.messages);
+		const messages = rawMessages.map((msg: any) => this.migrateMessage(msg));
+		this.cache.set(sessionKey, messages);
 		return messages.slice(-windowSize);
 	}
 
-	async addMessage(sessionKey: string, message: Message) {
+	async addMessage(sessionKey: string, message: Message | LegacyMessage) {
+		const newMessage: Message = 'id' in message ? message : this.migrateMessage(message);
 		const existing = await this.getMessages(sessionKey, 1000);
-		existing.push(message);
+		existing.push(newMessage);
 
 		const trimmed = existing.slice(-50);
+		this.cache.set(sessionKey, trimmed);
 		const encoded = JSON.stringify(trimmed);
 		const now = Date.now();
 
@@ -88,7 +181,43 @@ class MemoryStore {
 		);
 	}
 
+	async addMessageWithMetadata(sessionKey: string, content: string, role: 'user' | 'assistant' | 'system', metadata?: any) {
+		const message: Message = {
+			id: uuidv4(),
+			role,
+			content,
+			timestamp: Date.now(),
+			metadata,
+		};
+		await this.addMessage(sessionKey, message);
+	}
+
+	async getSmartContext(sessionKey: string, tokenLimit: number, model: string): Promise<Message[]> {
+		const messages = await this.getMessages(sessionKey, 100);
+		const result: Message[] = [];
+		let totalTokens = 0;
+
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			const tokens = this.countTokens(msg.content, model);
+			if (totalTokens + tokens > tokenLimit && result.length > 0) break;
+			result.unshift(msg);
+			totalTokens += tokens;
+		}
+
+		return result;
+	}
+
+	async formatForAI(sessionKey: string, tokenLimit: number, model: string): Promise<Array<{role: string, content: string}>> {
+		const messages = await this.getSmartContext(sessionKey, tokenLimit, model);
+		return messages.map(msg => ({
+			role: msg.role,
+			content: msg.content
+		}));
+	}
+
 	async clearMemory(sessionKey: string) {
+		this.cache.delete(sessionKey);
 		await this.run(`DELETE FROM memory WHERE sessionKey = ?`, [sessionKey]);
 	}
 }
@@ -104,8 +233,8 @@ export class SqliteMemory implements INodeType {
 		defaults: {
 			name: 'SQLite Memory',
 		},
-		inputs: ['main' as NodeConnectionType],
-		outputs: ['main' as NodeConnectionType],
+		inputs: ['main' as any],
+		outputs: ['main' as any],
 		properties: [
 			{
 				displayName: 'Operation',
@@ -114,22 +243,46 @@ export class SqliteMemory implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
-						name: 'Get Messages',
-						value: 'getMessages',
-						description: 'Retrieve chat messages from memory',
-						action: 'Get messages from memory',
-					},
-					{
 						name: 'Add Message',
 						value: 'addMessage',
 						description: 'Add a message to memory',
 						action: 'Add message to memory',
 					},
 					{
+						name: 'Auto-Store AI Response',
+						value: 'autoStoreAI',
+						description: 'Automatically store AI response with metadata',
+						action: 'Auto store AI response',
+					},
+					{
+						name: 'Auto-Store User Input',
+						value: 'autoStoreUser',
+						description: 'Automatically store user input from previous node',
+						action: 'Auto store user input',
+					},
+					{
 						name: 'Clear Memory',
 						value: 'clearMemory',
 						description: 'Clear all messages for a session',
 						action: 'Clear memory for session',
+					},
+					{
+						name: 'Format for AI',
+						value: 'formatForAI',
+						description: 'Format conversation history for AI consumption',
+						action: 'Format conversation for AI',
+					},
+					{
+						name: 'Get Messages',
+						value: 'getMessages',
+						description: 'Retrieve chat messages from memory',
+						action: 'Get messages from memory',
+					},
+					{
+						name: 'Smart Context Window',
+						value: 'smartContext',
+						description: 'Get context-aware message window',
+						action: 'Get smart context window',
 					},
 				],
 				default: 'getMessages',
@@ -138,8 +291,9 @@ export class SqliteMemory implements INodeType {
 				displayName: 'Session Key',
 				name: 'sessionKey',
 				type: 'string',
-				default: 'default',
-				description: 'Unique identifier for the chat session',
+				default: '',
+				placeholder: 'Leave empty for auto-generation',
+				description: 'Session identifier (auto-generated if empty)',
 			},
 			{
 				displayName: 'Window Size',
@@ -154,18 +308,42 @@ export class SqliteMemory implements INodeType {
 				},
 			},
 			{
+				displayName: 'Token Limit',
+				name: 'tokenLimit',
+				type: 'number',
+				default: 4000,
+				description: 'Maximum tokens for context window',
+				displayOptions: {
+					show: {
+						operation: ['formatForAI', 'smartContext'],
+					},
+				},
+			},
+			{
+				displayName: 'AI Model',
+				name: 'aiModel',
+				type: 'options',
+				options: [
+					{ name: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
+					{ name: 'GPT-4', value: 'gpt-4' },
+					{ name: 'GPT-4 Turbo', value: 'gpt-4-turbo-preview' },
+				],
+				default: 'gpt-3.5-turbo',
+				description: 'AI model for token counting',
+				displayOptions: {
+					show: {
+						operation: ['formatForAI', 'smartContext'],
+					},
+				},
+			},
+			{
 				displayName: 'Role',
 				name: 'role',
 				type: 'options',
 				options: [
-					{
-						name: 'User',
-						value: 'user',
-					},
-					{
-						name: 'AI',
-						value: 'ai',
-					},
+					{ name: 'User', value: 'user' },
+					{ name: 'Assistant', value: 'assistant' },
+					{ name: 'System', value: 'system' },
 				],
 				default: 'user',
 				description: 'Role of the message sender',
@@ -179,9 +357,7 @@ export class SqliteMemory implements INodeType {
 				displayName: 'Message Content',
 				name: 'content',
 				type: 'string',
-				typeOptions: {
-					rows: 4,
-				},
+				typeOptions: { rows: 4 },
 				default: '',
 				description: 'The message content to store',
 				displayOptions: {
@@ -201,7 +377,8 @@ export class SqliteMemory implements INodeType {
 		for (let i = 0; i < items.length; i++) {
 			try {
 				const operation = this.getNodeParameter('operation', i) as string;
-				const sessionKey = this.getNodeParameter('sessionKey', i) as string;
+				let sessionKey = this.getNodeParameter('sessionKey', i) as string;
+				if (!sessionKey) sessionKey = store.generateSessionKey();
 
 				let result: any = {};
 
@@ -213,10 +390,49 @@ export class SqliteMemory implements INodeType {
 						break;
 
 					case 'addMessage':
-						const role = this.getNodeParameter('role', i) as 'user' | 'ai';
+						const role = this.getNodeParameter('role', i) as 'user' | 'assistant' | 'system';
 						const content = this.getNodeParameter('content', i) as string;
-						await store.addMessage(sessionKey, { role, content });
+						await store.addMessageWithMetadata(sessionKey, content, role);
 						result = { success: true, sessionKey, message: { role, content } };
+						break;
+
+					case 'autoStoreUser':
+						const userInput = store.detectUserMessage(items[i].json);
+						if (userInput) {
+							await store.addMessageWithMetadata(sessionKey, userInput, 'user');
+							result = { 
+								success: true, 
+								sessionKey, 
+								message: { role: 'user', content: userInput },
+								chatInput: userInput
+							};
+						} else {
+							result = { success: false, error: 'No user input detected' };
+						}
+						break;
+
+					case 'autoStoreAI':
+						const aiResponse = store.detectAIResponse(items[i].json);
+						if (aiResponse) {
+							await store.addMessageWithMetadata(sessionKey, aiResponse.content, 'assistant', aiResponse.metadata);
+							result = { success: true, sessionKey, message: { role: 'assistant', content: aiResponse.content, metadata: aiResponse.metadata } };
+						} else {
+							result = { success: false, error: 'No AI response detected' };
+						}
+						break;
+
+					case 'formatForAI':
+						const tokenLimit = this.getNodeParameter('tokenLimit', i) as number;
+						const aiModel = this.getNodeParameter('aiModel', i) as string;
+						const formatted = await store.formatForAI(sessionKey, tokenLimit, aiModel);
+						result = { messages: formatted, sessionKey, tokenLimit, model: aiModel };
+						break;
+
+					case 'smartContext':
+						const contextTokenLimit = this.getNodeParameter('tokenLimit', i) as number;
+						const contextModel = this.getNodeParameter('aiModel', i) as string;
+						const contextMessages = await store.getSmartContext(sessionKey, contextTokenLimit, contextModel);
+						result = { messages: contextMessages, sessionKey, count: contextMessages.length, tokenLimit: contextTokenLimit };
 						break;
 
 					case 'clearMemory':

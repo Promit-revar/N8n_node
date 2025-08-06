@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.gitignore
+*.md
+test.js
+.eslintrc.js
+.prettierrc.js
+tsconfig.json
+gulpfile.js
+package-lock.json
+n8n-memory.sqlite
