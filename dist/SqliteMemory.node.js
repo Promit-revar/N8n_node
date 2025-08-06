@@ -396,7 +396,12 @@ class SqliteMemory {
                         const userInput = store.detectUserMessage(items[i].json);
                         if (userInput) {
                             await store.addMessageWithMetadata(sessionKey, userInput, 'user');
-                            result = { success: true, sessionKey, message: { role: 'user', content: userInput } };
+                            result = {
+                                success: true,
+                                sessionKey,
+                                message: { role: 'user', content: userInput },
+                                chatInput: userInput
+                            };
                         }
                         else {
                             result = { success: false, error: 'No user input detected' };

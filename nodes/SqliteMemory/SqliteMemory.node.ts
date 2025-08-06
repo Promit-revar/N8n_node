@@ -3,7 +3,6 @@ import type {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	NodeConnectionType,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
@@ -234,8 +233,8 @@ export class SqliteMemory implements INodeType {
 		defaults: {
 			name: 'SQLite Memory',
 		},
-		inputs: ['main' as NodeConnectionType],
-		outputs: ['main' as NodeConnectionType],
+		inputs: ['main' as any],
+		outputs: ['main' as any],
 		properties: [
 			{
 				displayName: 'Operation',
@@ -401,7 +400,12 @@ export class SqliteMemory implements INodeType {
 						const userInput = store.detectUserMessage(items[i].json);
 						if (userInput) {
 							await store.addMessageWithMetadata(sessionKey, userInput, 'user');
-							result = { success: true, sessionKey, message: { role: 'user', content: userInput } };
+							result = { 
+								success: true, 
+								sessionKey, 
+								message: { role: 'user', content: userInput },
+								chatInput: userInput
+							};
 						} else {
 							result = { success: false, error: 'No user input detected' };
 						}
