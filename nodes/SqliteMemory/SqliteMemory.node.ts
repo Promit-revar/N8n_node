@@ -234,8 +234,8 @@ export class SqliteMemory implements INodeType {
 		defaults: {
 			name: 'SQLite Memory',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: ['main'] as any,
+		outputs: ['main'] as any,
 		properties: [
 			{
 				displayName: 'Operation',
