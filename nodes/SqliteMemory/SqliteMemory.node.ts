@@ -1,10 +1,10 @@
-import type {
+import {
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
+	NodeOperationError,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
 
 import * as sqlite3 from 'sqlite3';
 import { join } from 'path';
@@ -233,8 +233,8 @@ export class SqliteMemory implements INodeType {
 		defaults: {
 			name: 'SQLite Memory',
 		},
-		inputs: ['main' as any],
-		outputs: ['main' as any],
+		inputs: ['main'],
+		outputs: ['main'],
 		properties: [
 			{
 				displayName: 'Operation',
