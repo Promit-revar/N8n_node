@@ -401,15 +401,14 @@ export class SqliteMemory implements INodeType {
 						const userInput = store.detectUserMessage(items[i].json);
 						if (userInput) {
 							await store.addMessageWithMetadata(sessionKey, userInput, 'user');
-							result = { 
-								success: true, 
-								sessionKey, 
-								message: { role: 'user', content: userInput },
-								chatInput: userInput
-							};
-						} else {
-							result = { success: false, error: 'No user input detected' };
 						}
+						result = {
+							...items[i].json,
+							chatInput: userInput || items[i].json.chatInput || items[i].json.message || '',
+							success: !!userInput,
+							sessionKey,
+							message: userInput ? { role: 'user', content: userInput } : null
+						};
 						break;
 
 					case 'autoStoreAI':
