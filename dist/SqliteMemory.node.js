@@ -233,8 +233,8 @@ class SqliteMemory {
             defaults: {
                 name: 'SQLite Memory',
             },
-            inputs: ['main'],
-            outputs: ['main'],
+            inputs: ["main"],
+            outputs: ["main"],
             properties: [
                 {
                     displayName: 'Operation',
