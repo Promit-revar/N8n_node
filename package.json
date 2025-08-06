@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-sqlite-memory",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "N8N node for AI Chat Memory with SQLite3 backend",
   "keywords": [
     "n8n-community-node-package",
@@ -33,7 +33,7 @@
     "format": "prettier nodes --write",
     "lint": "eslint nodes/**/*.ts",
     "lintfix": "eslint nodes/**/*.ts --fix",
-    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes package.json"
+    "prepublishOnly": "npm run build && eslint -c .eslintrc.prepublish.js nodes/**/*.ts"
   },
   "files": [
     "dist"
