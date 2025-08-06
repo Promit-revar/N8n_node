@@ -35,7 +35,6 @@ class MemoryStore {
 		// Use N8N user folder if available (Docker), otherwise current directory
 		const baseDir = process.env.N8N_USER_FOLDER || process.cwd();
 		const dbPath = join(baseDir, 'n8n-memory.sqlite');
-		console.log('SQLite Memory: Database path:', dbPath);
 		this.db = new sqlite3.Database(dbPath);
 		this.initialize();
 	}
@@ -58,9 +57,9 @@ class MemoryStore {
 					lastAccessed INTEGER
 				)
 			`);
-			console.log('SQLite Memory: Table created successfully');
+			// Table created successfully
 		} catch (error) {
-			console.error('SQLite Memory: Failed to create table:', error);
+			// Failed to create table
 			throw error;
 		}
 	}
@@ -245,28 +244,28 @@ export class SqliteMemory implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
-						name: 'Get Messages',
-						value: 'getMessages',
-						description: 'Retrieve chat messages from memory',
-						action: 'Get messages from memory',
-					},
-					{
 						name: 'Add Message',
 						value: 'addMessage',
 						description: 'Add a message to memory',
 						action: 'Add message to memory',
 					},
 					{
-						name: 'Auto-Store User Input',
-						value: 'autoStoreUser',
-						description: 'Automatically store user input from previous node',
-						action: 'Auto-store user input',
-					},
-					{
 						name: 'Auto-Store AI Response',
 						value: 'autoStoreAI',
 						description: 'Automatically store AI response with metadata',
-						action: 'Auto-store AI response',
+						action: 'Auto store AI response',
+					},
+					{
+						name: 'Auto-Store User Input',
+						value: 'autoStoreUser',
+						description: 'Automatically store user input from previous node',
+						action: 'Auto store user input',
+					},
+					{
+						name: 'Clear Memory',
+						value: 'clearMemory',
+						description: 'Clear all messages for a session',
+						action: 'Clear memory for session',
 					},
 					{
 						name: 'Format for AI',
@@ -275,16 +274,16 @@ export class SqliteMemory implements INodeType {
 						action: 'Format conversation for AI',
 					},
 					{
+						name: 'Get Messages',
+						value: 'getMessages',
+						description: 'Retrieve chat messages from memory',
+						action: 'Get messages from memory',
+					},
+					{
 						name: 'Smart Context Window',
 						value: 'smartContext',
 						description: 'Get context-aware message window',
 						action: 'Get smart context window',
-					},
-					{
-						name: 'Clear Memory',
-						value: 'clearMemory',
-						description: 'Clear all messages for a session',
-						action: 'Clear memory for session',
 					},
 				],
 				default: 'getMessages',
@@ -329,7 +328,6 @@ export class SqliteMemory implements INodeType {
 					{ name: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
 					{ name: 'GPT-4', value: 'gpt-4' },
 					{ name: 'GPT-4 Turbo', value: 'gpt-4-turbo-preview' },
-					{ name: 'Other', value: 'gpt-3.5-turbo' },
 				],
 				default: 'gpt-3.5-turbo',
 				description: 'AI model for token counting',

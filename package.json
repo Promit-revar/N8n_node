@@ -3,26 +3,36 @@
   "version": "1.0.0",
   "description": "N8N node for AI Chat Memory with SQLite3 backend",
   "keywords": [
-    "n8n-community-node-package"
+    "n8n-community-node-package",
+    "n8n",
+    "sqlite",
+    "memory",
+    "chat",
+    "ai",
+    "storage",
+    "conversation"
   ],
   "license": "MIT",
-  "homepage": "",
+  "homepage": "https://github.com/Promit-revar/N8n_node#readme",
   "author": {
-    "name": "",
-    "email": ""
+    "name": "Promit Revar",
+    "email": "promit.revar2211@gmail.com"
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/Promit-revar/N8n_node.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Promit-revar/N8n_node/issues"
   },
   "main": "index.js",
   "scripts": {
     "build": "tsc && gulp build:icons",
     "dev": "tsc --watch",
-    "test": "node test.js",
+    "test": "npm run build && node test/sqlite-memory.test.js",
     "format": "prettier nodes --write",
-    "lint": "eslint nodes package.json",
-    "lintfix": "eslint nodes package.json --fix",
+    "lint": "eslint nodes/**/*.ts",
+    "lintfix": "eslint nodes/**/*.ts --fix",
     "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes package.json"
   },
   "files": [
@@ -38,10 +48,11 @@
   "devDependencies": {
     "@types/node": "^18.16.16",
     "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.8",
     "@typescript-eslint/parser": "^5.59.8",
     "eslint": "^8.42.0",
     "eslint-plugin-n8n-nodes-base": "^1.11.0",
-    "gulp": "^4.0.2",
+    "gulp": "^5.0.1",
     "n8n-workflow": "*",
     "prettier": "^2.8.8",
     "typescript": "^5.1.3"
@@ -50,9 +61,6 @@
     "n8n-workflow": "*"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.66",
-    "langchain": "^0.3.30",
-    "n8n-nodes-sqlite-memory": "file:n8n-nodes-sqlite-memory-1.0.0.tgz",
     "sqlite3": "^5.1.6",
     "tiktoken": "^1.0.21",
     "uuid": "^11.1.0"
