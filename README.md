@@ -1,25 +1,35 @@
 # n8n-nodes-sqlite-memory
 
-N8N community node for AI Chat Memory with SQLite3 backend. Provides persistent local storage for chat conversations without external dependencies.
+[![npm version](https://badge.fury.io/js/n8n-nodes-sqlite-memory.svg)](https://badge.fury.io/js/n8n-nodes-sqlite-memory)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Installation
+A powerful N8N community node for AI Chat Memory with SQLite3 backend. Provides persistent local storage for chat conversations without external dependencies.
 
+## 🚀 Features
+
+- **🗄️ Local SQLite Storage**: No external database required - works out of the box
+- **🔑 Session Management**: Organize conversations by unique session keys
+- **📊 Smart Context Window**: Token-aware message retrieval with configurable limits
+- **🤖 AI Integration**: Auto-detect and store user inputs and AI responses
+- **🧹 Auto-cleanup**: Automatically maintains last 50 messages per session
+- **⚡ Zero Configuration**: Works immediately after installation
+- **🔄 Legacy Support**: Backward compatible with existing message formats
+
+## 📦 Installation
+
+### Option 1: Install via npm (Recommended)
 ```bash
 npm install n8n-nodes-sqlite-memory
 ```
 
-## Features
+### Option 2: Manual Installation
+1. Download the latest release
+2. Place in your N8N custom nodes directory
+3. Restart N8N
 
-- **Local SQLite Storage**: No external database required
-- **Session Management**: Organize conversations by unique session keys
-- **Configurable Window**: Retrieve specific number of recent messages
-- **Role Support**: Store messages with user/AI role identification
-- **Auto-cleanup**: Automatically maintains last 50 messages per session
-- **No Configuration**: Works out-of-the-box with zero setup
+## 🛠️ Operations
 
-## Operations
-
-### Get Messages
+### 📥 Get Messages
 Retrieves recent messages from a chat session.
 
 **Parameters:**
@@ -30,20 +40,20 @@ Retrieves recent messages from a chat session.
 ```json
 {
   "messages": [
-    { "role": "user", "content": "Hello" },
-    { "role": "ai", "content": "Hi there!" }
+    { "id": "uuid", "role": "user", "content": "Hello", "timestamp": 1703123456789 },
+    { "id": "uuid", "role": "assistant", "content": "Hi there!", "timestamp": 1703123456790 }
   ],
   "sessionKey": "chat-123",
   "count": 2
 }
 ```
 
-### Add Message
-Stores a new message in the chat session.
+### ➕ Add Message
+Manually stores a message in the chat session.
 
 **Parameters:**
 - `Session Key`: Unique identifier for the chat session
-- `Role`: Message sender role (user/ai)
+- `Role`: Message sender role (user/assistant/system)
 - `Message Content`: The message text to store
 
 **Output:**
@@ -58,11 +68,86 @@ Stores a new message in the chat session.
 }
 ```
 
-### Clear Memory
-Removes all messages for a specific session.
+### 🔄 Auto-Store User Input
+Automatically detects and stores user input from the previous node.
+
+**Detects input from:**
+- `chatInput`
+- `message`
+- `content`
+- `text`
+- `query`
+
+**Output:**
+```json
+{
+  "success": true,
+  "sessionKey": "chat-123",
+  "message": { "role": "user", "content": "Hello" },
+  "chatInput": "Hello"
+}
+```
+
+### 🤖 Auto-Store AI Response
+Automatically detects and stores AI responses with metadata.
+
+**Supports formats:**
+- OpenAI API responses
+- LangChain outputs
+- Simple text responses
+
+**Output:**
+```json
+{
+  "success": true,
+  "sessionKey": "chat-123",
+  "message": {
+    "role": "assistant",
+    "content": "Hi there!",
+    "metadata": {
+      "model": "gpt-3.5-turbo",
+      "tokens": 150
+    }
+  }
+}
+```
+
+### 🎯 Format for AI
+Formats conversation history for AI consumption with token limits.
 
 **Parameters:**
-- `Session Key`: Session to clear
+- `Session Key`: Chat session identifier
+- `Token Limit`: Maximum tokens for context (default: 4000)
+- `AI Model`: Model for token counting (GPT-3.5/GPT-4)
+
+**Output:**
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Hello" },
+    { "role": "assistant", "content": "Hi there!" }
+  ],
+  "sessionKey": "chat-123",
+  "tokenLimit": 4000,
+  "model": "gpt-3.5-turbo"
+}
+```
+
+### 🧠 Smart Context Window
+Retrieves context-aware message window based on token limits.
+
+**Output:**
+```json
+{
+  "messages": [...],
+  "sessionKey": "chat-123",
+  "count": 5,
+  "tokenLimit": 4000
+}
+```
+
+### 🗑️ Clear Memory
+Removes all messages for a specific session.
 
 **Output:**
 ```json
@@ -73,155 +158,145 @@ Removes all messages for a specific session.
 }
 ```
 
-## Database
+## 📋 Usage Examples
 
-- **File**: `n8n-memory.sqlite` (created in N8N working directory)
-- **No credentials required**: Local file-based storage
-- **Auto-created**: Database and tables created automatically
-- **Schema**:
-  ```sql
-  CREATE TABLE memory (
-    sessionKey TEXT PRIMARY KEY,
-    messages TEXT,
-    created INTEGER,
-    lastAccessed INTEGER
-  )
-  ```
-
-## Usage Examples
-
-### Basic Chat Memory
+### Basic Chat Memory Flow
 ```
-[Manual Trigger] → [Add Message: user] → [Add Message: ai] → [Get Messages]
+[Chat Trigger] → [SQLite Memory: Auto-Store User] → [OpenAI] → [SQLite Memory: Auto-Store AI]
 ```
 
-### Chat with Context Window
+### Context-Aware AI Chat
 ```
-[Webhook] → [Add Message] → [Get Messages (window=5)] → [OpenAI] → [Add Message: ai]
-```
-
-## Testing
-
-### 1. Unit Test
-```bash
-npm test
+[Webhook] → [SQLite Memory: Auto-Store User] → [SQLite Memory: Format for AI] → [OpenAI] → [SQLite Memory: Auto-Store AI]
 ```
 
-### 2. Install and Test in N8N
-
-**Step 1: Build and Install**
-```bash
-# Build the node
-npm run build
-
-# Create package
-npm pack
-
-# Install in N8N (choose one method)
-# Method A: Global installation
-npm install -g ./n8n-nodes-sqlite-memory-1.0.0.tgz
-
-# Method B: Local N8N installation
-cp n8n-nodes-sqlite-memory-1.0.0.tgz ~/.n8n/nodes/
-cd ~/.n8n/nodes && npm install n8n-nodes-sqlite-memory-1.0.0.tgz
+### Manual Message Management
+```
+[Manual Trigger] → [SQLite Memory: Add Message] → [SQLite Memory: Get Messages]
 ```
 
-**Step 2: Start N8N**
-```bash
-# Start with custom extensions path
-export N8N_CUSTOM_EXTENSIONS="$HOME/.n8n/nodes"
-n8n start
-
-# Or use the provided script
-./start-n8n.sh
+### Smart Context Retrieval
+```
+[HTTP Request] → [SQLite Memory: Smart Context Window] → [Process Messages] → [Response]
 ```
 
-**Step 3: Test in N8N Interface**
-1. Open http://localhost:5678
-2. Create new workflow
-3. Search for "SQLite Memory" in node panel
-4. Node appears under "Transform" category
+## 🗃️ Database Schema
 
-### 3. Manual Testing Steps
-1. **Add Manual Trigger** node
-2. **Add SQLite Memory** node:
-   - Operation: "Add Message"
-   - Session Key: "test-chat"
-   - Role: "user"
-   - Content: "Hello!"
-3. **Add another SQLite Memory** node:
-   - Operation: "Add Message"
-   - Session Key: "test-chat"
-   - Role: "ai"
-   - Content: "Hi there!"
-4. **Add final SQLite Memory** node:
-   - Operation: "Get Messages"
-   - Session Key: "test-chat"
-   - Window Size: 10
-5. **Execute workflow** - should see both messages
+**File Location**: Database file created in N8N working directory
 
-### 4. Import Test Workflow
-```bash
-# Import workflow-test.json in N8N interface
-# Execute to test all operations automatically
+**Table Structure**:
+```sql
+CREATE TABLE memory (
+  sessionKey TEXT PRIMARY KEY,
+  messages TEXT,
+  created INTEGER,
+  lastAccessed INTEGER
+)
 ```
 
-## Troubleshooting
-
-**Node not appearing in N8N:**
-```bash
-# Try installation script
-./install-node.sh
-
-# Or debug with
-./debug-n8n.sh
-
-# Verify installation
-ls ~/.n8n/nodes/node_modules/ | grep sqlite
+**Message Format**:
+```json
+{
+  "id": "uuid-v4",
+  "role": "user|assistant|system",
+  "content": "message text",
+  "timestamp": 1703123456789,
+  "metadata": {
+    "model": "gpt-3.5-turbo",
+    "tokens": 150
+  }
+}
 ```
 
-**Start N8N with custom extensions:**
-```bash
-N8N_CUSTOM_EXTENSIONS="$HOME/.n8n/nodes" n8n start
-```
+## ⚙️ Configuration
 
-**Database errors:**
-- Ensure N8N has write permissions in working directory
-- Check `n8n-memory.sqlite` file is created
-- Database auto-creates on first use
+### Session Keys
+- **Auto-generated**: Leave empty for automatic UUID generation
+- **Custom**: Use consistent keys across workflow nodes
+- **Best Practice**: Use meaningful identifiers like `user-${userId}-chat`
 
-**Memory not persisting:**
-- Verify session keys are consistent across operations
-- Check database file location in N8N working directory
+### Token Limits
+- **GPT-3.5 Turbo**: 4,096 tokens (recommended: 3,500)
+- **GPT-4**: 8,192 tokens (recommended: 7,500)
+- **GPT-4 Turbo**: 128,000 tokens (recommended: 120,000)
 
-## Development
+### Window Sizes
+- **Small conversations**: 5-10 messages
+- **Medium conversations**: 20-30 messages
+- **Large conversations**: 50+ messages (auto-trimmed)
 
-```bash
-# Setup
-npm install
-npm run build
+## 🔧 Advanced Usage
 
-# Test core functionality
-npm test
+### Custom Session Management
+- Use consistent session keys across workflow nodes
+- Generate meaningful identifiers for better organization
+- Implement user-specific session isolation
 
-# Install for N8N testing
-./install-node.sh
+### Conditional Memory Storage
+- Filter messages based on importance or content type
+- Implement selective storage logic
+- Skip memory operations when not needed
 
-# Start N8N for testing
-./start-n8n.sh
+### Message Preprocessing
+- Clean and validate message content before storage
+- Add custom metadata for tracking
+- Transform message format as needed
 
-# Debug installation issues
-./debug-n8n.sh
-```
+## 🚨 Troubleshooting
 
-## Scripts
+### Node Not Appearing
+- Verify package installation
+- Restart N8N service
+- Check custom extensions configuration
 
-- `npm test` - Run unit tests
-- `npm run build` - Build TypeScript and copy assets
-- `./install-node.sh` - Install node in N8N
-- `./start-n8n.sh` - Start N8N with custom extensions
-- `./debug-n8n.sh` - Debug node loading issues
+### Database Issues
+- **Permission errors**: Ensure N8N has write access to working directory
+- **File not found**: Database auto-creates on first use
+- **Corruption**: Reset database if needed (data will be lost)
 
-## License
+### Memory Not Persisting
+- **Check session keys**: Must be consistent across operations
+- **Verify operations**: Ensure using correct operation types
+- **Database location**: Check N8N working directory
 
-MIT
+### Performance Issues
+- **Large sessions**: Use Smart Context Window instead of Get Messages
+- **Token limits**: Reduce window size or token limits
+- **Cleanup**: Regularly clear old sessions
+
+## 📊 Performance Tips
+
+1. **Use Smart Context Window** for large conversations
+2. **Set appropriate token limits** based on your AI model
+3. **Implement session cleanup** for old conversations
+4. **Use consistent session keys** to avoid fragmentation
+5. **Monitor database size** and clean up periodically
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🔗 Links
+
+- [GitHub Repository](https://github.com/Promit-revar/N8n_node)
+- [npm Package](https://www.npmjs.com/package/n8n-nodes-sqlite-memory)
+- [N8N Community](https://community.n8n.io/)
+- [Issue Tracker](https://github.com/Promit-revar/N8n_node/issues)
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/Promit-revar/N8n_node/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Promit-revar/N8n_node/discussions)
+- **Community**: N8N Community Forums
+
+---
+
+Made with ❤️ for the N8N community
